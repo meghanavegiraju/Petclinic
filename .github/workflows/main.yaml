@@ -77,3 +77,13 @@ jobs:
           mvn deploy \
             -DskipTests \
             -DaltDeploymentRepository=nexus::default::${{ secrets.NEXUS_REPO_URL }}
+            # Deploy WAR to Tomcat
+      - name: Deploy to Tomcat
+        env:
+          TOMCAT_USER: ${{ secrets.TOMCAT_USER }}
+          TOMCAT_PASSWORD: ${{ secrets.TOMCAT_PASSWORD }}
+          TOMCAT_HOST: ${{ secrets.TOMCAT_HOST }}
+        run: |
+          curl -u "$TOMCAT_USER:$TOMCAT_PASSWORD" \
+            --upload-file target/*.war \
+            "http://$TOMCAT_HOST:8080/manager/text/deploy?path=/petclinic&update=true"
