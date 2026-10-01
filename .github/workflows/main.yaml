@@ -1,4 +1,4 @@
-name: Maven Build, SonarQube and Nexus
+name: Maven Build, SonarQube, Nexus and Tomcat
 
 on:
   push:
@@ -13,10 +13,15 @@ jobs:
 
     steps:
 
+      # =========================
+      # Checkout Source Code
+      # =========================
       - name: Checkout Source
         uses: actions/checkout@v4
 
-      # Build using Java 8
+      # =========================
+      # Setup Java 8
+      # =========================
       - name: Setup Java 8
         uses: actions/setup-java@v6
         with:
@@ -24,19 +29,30 @@ jobs:
           java-version: '8'
           cache: maven
 
+      # =========================
+      # Maven Build
+      # =========================
       - name: Build Project
         run: mvn clean install -DskipTests
 
+      # =========================
+      # Verify WAR File
+      # =========================
       - name: Verify WAR
         run: ls -lh target
 
-      # Java 17 only for SonarQube
+      # =========================
+      # Setup Java 17 for SonarQube
+      # =========================
       - name: Setup Java 17
         uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
+      # =========================
+      # SonarQube Scan
+      # =========================
       - name: SonarQube Scan
         env:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
@@ -48,17 +64,22 @@ jobs:
             -Dsonar.host.url=$SONAR_HOST_URL \
             -Dsonar.token=$SONAR_TOKEN
 
+      # =========================
       # Switch back to Java 8
+      # =========================
       - name: Setup Java 8 Again
         uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '8'
 
+      # =========================
       # Configure Maven Settings
+      # =========================
       - name: Configure Maven settings.xml
         run: |
           mkdir -p ~/.m2
+
           cat > ~/.m2/settings.xml <<EOF
           <settings>
             <servers>
@@ -71,9 +92,24 @@ jobs:
           </settings>
           EOF
 
-      # Deploy to Nexus
+      # =========================
+      # Deploy Artifact to Nexus
+      # =========================
       - name: Deploy Artifact to Nexus
         run: |
           mvn deploy \
             -DskipTests \
             -DaltDeploymentRepository=nexus::default::${{ secrets.NEXUS_REPO_URL }}
+
+      # =========================
+      # Deploy WAR to Tomcat
+      # =========================
+      - name: Deploy to Tomcat
+        env:
+          TOMCAT_USER: ${{ secrets.TOMCAT_USER }}
+          TOMCAT_PASSWORD: ${{ secrets.TOMCAT_PASSWORD }}
+          TOMCAT_HOST: ${{ secrets.TOMCAT_HOST }}
+        run: |
+          curl -u "$TOMCAT_USER:$TOMCAT_PASSWORD" \
+            --upload-file target/*.war \
+            "http://$TOMCAT_HOST:8080/manager/text/deploy?path=/petclinic&update=true"
